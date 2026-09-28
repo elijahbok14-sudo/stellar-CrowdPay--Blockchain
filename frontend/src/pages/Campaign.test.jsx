@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Campaign from './Campaign';
 
@@ -117,5 +117,41 @@ describe('Campaign Page', () => {
     await waitFor(() => {
       expect(screen.getByText(/Backer Wall \(1\)/i)).toBeInTheDocument();
     });
+  });
+
+  it('connects to SSE using base URL and auto-reconnects on error', async () => {
+    const instances = [];
+    class MockEventSource {
+      constructor(url) {
+        this.url = url;
+        this.onopen = null;
+        this.onmessage = null;
+        this.onerror = null;
+        this.close = vi.fn();
+        instances.push(this);
+      }
+    }
+    vi.stubGlobal('EventSource', MockEventSource);
+
+    render(
+      <MemoryRouter initialEntries={['/campaigns/1']}>
+        <Routes>
+          <Route path="/campaigns/:id" element={<Campaign />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(instances.length).toBeGreaterThanOrEqual(1);
+    });
+    expect(instances[0].url).toMatch(/\/api\/campaigns\/1\/stream$/);
+
+    // Trigger error on first EventSource instance
+    act(() => {
+      instances[0].onerror(new Event('error'));
+    });
+    expect(instances[0].close).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 });

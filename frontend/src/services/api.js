@@ -294,6 +294,14 @@ export const api = {
     }),
   getContributionFinalization: (txHash) =>
     request('GET', `/contributions/finalization/${txHash}`),
+  getStellarTransactions: (options = {}) => {
+    const { campaignId, campaign_id, ...rest } = options || {};
+    const query = {
+      ...rest,
+      ...(campaignId || campaign_id ? { campaign_id: campaign_id || campaignId } : {}),
+    };
+    return request("GET", "/stellar/transactions", null, { query });
+  },
   failExpiredCampaigns: () => request('POST', '/campaigns/cron/fail-expired'),
   triggerCampaignRefunds: (campaignId) => request('POST', `/campaigns/${campaignId}/trigger-refunds`),
   initiateRefund: (id) => request('POST', `/campaigns/${id}/refund/initiate`, {}),

@@ -17,6 +17,12 @@ import CampaignQRCode from "../components/CampaignQRCode";
 import { getNetwork, signTransaction } from '@stellar/freighter-api';
 import { isConnected, getPublicKey } from "@stellar/freighter-api";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(
+  /\/+$/,
+  "",
+);
+const BASE_URL = `${API_BASE_URL}/api`;
+
 function escapeHtml(text) {
   return text
     .replaceAll("&", "&amp;")
@@ -129,6 +135,7 @@ function isCampaignOwner(user, campaign) {
 
 export default function Campaign() {
   const contributeBtnRef = useRef(null);
+  const showAllRef = useRef(false);
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -314,52 +321,108 @@ export default function Campaign() {
   }, [id, token, isLive, campaign, showAll]);
 
   useEffect(() => {
+    showAllRef.current = showAll;
+  }, [showAll]);
+
+  useEffect(() => {
+    if (!id) return;
     if (!window.EventSource) return;
 
-    const es = new EventSource(`/api/campaigns/${id}/stream`);
+    let es = null;
+    let reconnectTimer = null;
+    let retryDelay = 1000;
+    const maxRetryDelay = 30000;
+    let isMounted = true;
 
-    es.onopen = () => setIsLive(true);
+    function connect() {
+      if (!isMounted) return;
+      if (es) {
+        try {
+          es.close();
+        } catch {}
+        es = null;
+      }
 
-    es.onmessage = (e) => {
-      let msg;
       try {
-        msg = JSON.parse(e.data);
+        es = new EventSource(`${BASE_URL}/campaigns/${id}/stream`);
       } catch {
+        scheduleReconnect();
         return;
       }
 
-      if (msg.type === "contribution") {
-        setCampaign((prev) =>
-          prev ? { ...prev, raised_amount: msg.raised_amount } : prev,
-        );
-        setContributions((prev) => {
-          const current = prev || [];
-          const exists = current.some(
-            (c) => c.tx_hash === msg.contribution.tx_hash,
+      es.onopen = () => {
+        if (!isMounted) return;
+        setIsLive(true);
+        retryDelay = 1000;
+      };
+
+      es.onmessage = (e) => {
+        if (!isMounted) return;
+        let msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+
+        if (msg.type === "contribution") {
+          setCampaign((prev) =>
+            prev ? { ...prev, raised_amount: msg.raised_amount } : prev,
           );
-          if (exists) return current;
+          setContributions((prev) => {
+            const current = prev || [];
+            const exists = current.some(
+              (c) => c.tx_hash === msg.contribution.tx_hash,
+            );
+            if (exists) return current;
 
-          setTotalContributions((t) => t + 1);
+            setTotalContributions((t) => t + 1);
 
-          const updated = [msg.contribution, ...current];
-          if (!showAll && updated.length > 10) {
-            return updated.slice(0, 10);
-          }
-          return updated;
-        });
-      }
-    };
+            const updated = [msg.contribution, ...current];
+            if (!showAllRef.current && updated.length > 10) {
+              return updated.slice(0, 10);
+            }
+            return updated;
+          });
+        }
+      };
 
-    es.onerror = () => {
-      setIsLive(false);
-      es.close();
-    };
+      es.onerror = () => {
+        if (!isMounted) return;
+        setIsLive(false);
+        if (es) {
+          try {
+            es.close();
+          } catch {}
+          es = null;
+        }
+        scheduleReconnect();
+      };
+    }
+
+    function scheduleReconnect() {
+      if (!isMounted) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        connect();
+      }, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
+    }
+
+    connect();
 
     return () => {
-      es.close();
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      if (es) {
+        try {
+          es.close();
+        } catch {}
+        es = null;
+      }
       setIsLive(false);
     };
-  }, [id, showAll]);
+  }, [id]);
 
   useEffect(() => {
     if (location.state?.created) {
