@@ -320,8 +320,6 @@ export default function Home() {
         ))}
       </div>
 
-      <h2 style={styles.sectionTitle}>Active campaigns</h2>
-
       <div style={styles.sortBar}>
         {SORT_OPTIONS.map((opt) => (
           <button

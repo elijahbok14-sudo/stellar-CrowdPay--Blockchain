@@ -237,6 +237,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
   }, [anchorSession?.id, onSuccess, phase, token]);
 
   useEffect(() => {
+    const prevActive = document.activeElement;
     const modal = modalRef.current;
     if (!modal) return;
     const focusable = modal.querySelectorAll(
@@ -261,7 +262,10 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
       }
     }
     modal.addEventListener('keydown', trapTab);
-    return () => modal.removeEventListener('keydown', trapTab);
+    return () => {
+      modal.removeEventListener('keydown', trapTab);
+      prevActive?.focus?.();
+    };
   }, [phase]);
 
   async function submitWithCustodial() {
