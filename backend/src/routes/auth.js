@@ -244,25 +244,6 @@ router.post('/register', registerLimiter, registerValidation, validateRequest, a
    *               type: object
    *               properties:
    *                 error: { type: string }
-   * /api/users/register:
-   *   post:
-   *     tags: [Users]
-   *     summary: Register a new user (alias of /api/auth/register)
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required: [email, password, name]
-   *             properties:
-   *               email: { type: string, format: email }
-   *               password: { type: string, minLength: 6 }
-   *               name: { type: string }
-   *               role: { type: string, enum: [contributor, creator] }
-   *     responses:
-   *       201: { description: Created }
-   *       409: { description: Email already registered }
    */
   const { email, password, name, role } = req.body;
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -398,23 +379,6 @@ router.post('/login', loginLimiter, loginValidation, validateRequest, asyncHandl
    *               type: object
    *               properties:
    *                 error: { type: string }
-   * /api/users/login:
-   *   post:
-   *     tags: [Users]
-   *     summary: Login (alias of /api/auth/login)
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required: [email, password]
-   *             properties:
-   *               email: { type: string, format: email }
-   *               password: { type: string }
-   *     responses:
-   *       200: { description: OK }
-   *       401: { description: Invalid credentials }
    */
   const { email, password } = req.body;
   const normalizedEmail = String(email || '').trim().toLowerCase();

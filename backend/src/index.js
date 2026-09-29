@@ -59,9 +59,7 @@ const globalApiLimiter = rateLimit({
     if (!isPost) return false;
     return (
       p === '/auth/register' ||
-      p === '/users/register' ||
-      p === '/auth/login' ||
-      p === '/users/login'
+      p === '/auth/login'
     );
   },
 });
@@ -89,8 +87,6 @@ const openApiSpec = swaggerJsdoc({
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 app.use('/api/auth', require('./routes/auth'));
-// Backwards/alternate compatibility for docs + clients expecting /api/users/register|login.
-app.use('/api/users', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use("/api/campaigns", require("./routes/campaignUpdates"));
 app.use("/api/campaigns", require("./routes/campaigns"));

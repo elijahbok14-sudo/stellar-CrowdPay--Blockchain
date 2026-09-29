@@ -1322,13 +1322,12 @@ export default function Campaign() {
         </div>
       )}
 
-      {token && (
+      {user && (
         <div id="withdrawals" data-no-print>
         <WithdrawalsSection
           campaign={campaign}
           milestones={milestones}
           user={user}
-          token={token}
           onReleased={() => {
             api
               .getCampaign(id)
