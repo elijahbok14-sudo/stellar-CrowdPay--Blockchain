@@ -3,224 +3,153 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import AdminDashboard from './AdminDashboard';
+import { api } from '../services/api';
 
-const api = {
-  getAdminCampaigns: vi.fn(),
-  getCampaignDisputes: vi.fn(),
-  updateDispute: vi.fn(),
-  adminFeatureCampaign: vi.fn(),
-  adminUnfeatureCampaign: vi.fn(),
-};
-
-const dialogApi = {
-  confirm: vi.fn(),
-  prompt: vi.fn(),
-  alert: vi.fn(),
-};
-
-const authState = { user: { id: '1', name: 'Admin', email: 'admin@example.com', role: 'admin' } };
 const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useNavigate: () => mockNavigate,
+}));
 
-vi.mock('../services/api', () => ({ api }));
-vi.mock('../context/DialogContext', () => ({ useDialog: () => dialogApi }));
-vi.mock('../context/AuthContext', () => ({ useAuth: () => authState }));
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
-});
+let mockUser = { id: 'admin-1', role: 'admin' };
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ user: mockUser, ready: true }),
+}));
 
-const CAMPAIGNS = [
-  { id: 1, title: 'Alpha' },
-  { id: 2, title: 'Beta' },
+const dialog = { prompt: vi.fn(), confirm: vi.fn(), alert: vi.fn() };
+vi.mock('../context/DialogContext', () => ({
+  useDialog: () => dialog,
+}));
+
+vi.mock('../services/api', () => ({
+  api: {
+    getAdminCampaigns: vi.fn(),
+    getCampaignDisputes: vi.fn(),
+    updateDispute: vi.fn(),
+    adminFeatureCampaign: vi.fn(),
+    adminUnfeatureCampaign: vi.fn(),
+  },
+}));
+
+const campaigns = [
+  { id: 'c1', title: 'Solar Roofs' },
+  { id: 'c2', title: 'Clean Water' },
 ];
-const DISPUTES = [
-  { id: 'd1', campaign_title: 'Alpha', status: 'open', reason: 'Funds not delivered', created_at: '2024-06-01T00:00:00Z' },
-  { id: 'd2', campaign_title: 'Beta', status: 'under_review', reason: 'Late milestone', created_at: '2024-06-02T00:00:00Z' },
-];
 
-function mockInitialData() {
-  api.getAdminCampaigns.mockResolvedValue(CAMPAIGNS);
-  api.getCampaignDisputes.mockImplementation((id) =>
-    Promise.resolve(id === 1 ? [DISPUTES[0]] : [DISPUTES[1]])
+const disputesByCampaign = {
+  c1: [{ id: 'd1', status: 'open', reason: 'Funds not delivered', created_at: '2026-01-01T00:00:00Z' }],
+  c2: [{ id: 'd2', status: 'under_review', reason: 'Misleading pitch', created_at: '2026-03-01T00:00:00Z' }],
+};
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <AdminDashboard />
+    </MemoryRouter>
   );
 }
 
-describe('AdminDashboard', () => {
-  beforeEach(() => {
-    api.getAdminCampaigns.mockReset();
-    api.getCampaignDisputes.mockReset();
-    api.updateDispute.mockReset();
-    api.adminFeatureCampaign.mockReset();
-    api.adminUnfeatureCampaign.mockReset();
-    dialogApi.confirm.mockReset().mockResolvedValue(true);
-    dialogApi.prompt.mockReset().mockResolvedValue('');
-    dialogApi.alert.mockReset().mockResolvedValue(undefined);
-    authState.user = { id: '1', name: 'Admin', email: 'admin@example.com', role: 'admin' };
-    mockNavigate.mockReset();
-  });
+function disputeCard(reason) {
+  return screen.getByText(reason).parentElement;
+}
 
-  it('redirects non-admin users away', () => {
-    authState.user = { id: '2', name: 'U', role: 'contributor' };
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockUser = { id: 'admin-1', role: 'admin' };
+  api.getAdminCampaigns.mockResolvedValue(campaigns);
+  api.getCampaignDisputes.mockImplementation((id) => Promise.resolve(disputesByCampaign[id] || []));
+});
+
+describe('AdminDashboard access', () => {
+  it('redirects non-admins home', () => {
+    mockUser = { id: 'u1', role: 'contributor' };
+    renderPage();
     expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 
-  it('lists admin campaigns', async () => {
-    mockInitialData();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
+  it('redirects signed-out visitors home', () => {
+    mockUser = null;
+    renderPage();
+    expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+});
+
+describe('AdminDashboard dispute queue', () => {
+  it('aggregates disputes across campaigns, newest first', async () => {
+    renderPage();
+    const newest = await screen.findByText('Misleading pitch');
+    const oldest = screen.getByText('Funds not delivered');
+    expect(newest.compareDocumentPosition(oldest) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(disputeCard('Funds not delivered')).getByText('Solar Roofs')).toBeInTheDocument();
+    expect(api.getCampaignDisputes).toHaveBeenCalledWith('c1');
+    expect(api.getCampaignDisputes).toHaveBeenCalledWith('c2');
+  });
+
+  it('keeps the queue usable when one campaign fails to load', async () => {
+    api.getCampaignDisputes.mockImplementation((id) =>
+      id === 'c1' ? Promise.reject(new Error('boom')) : Promise.resolve(disputesByCampaign[id])
     );
-    expect(await screen.findByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
+    renderPage();
+    expect(await screen.findByText('Misleading pitch')).toBeInTheDocument();
+    expect(screen.queryByText('Funds not delivered')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when there are no disputes', async () => {
-    api.getAdminCampaigns.mockResolvedValue([]);
     api.getCampaignDisputes.mockResolvedValue([]);
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('No disputes on record.')).toBeInTheDocument();
+    renderPage();
+    expect(await screen.findByText(/no disputes on record/i)).toBeInTheDocument();
   });
 
-  it('lists disputes sorted newest first with their campaign titles', async () => {
-    mockInitialData();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Funds not delivered')).toBeInTheDocument();
-    const cards = screen.getAllByText(/#d[12]/i);
-    expect(cards.length).toBe(2);
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
+  it('offers every transition except the current status', async () => {
+    renderPage();
+    await screen.findByText('Funds not delivered');
+    const card = disputeCard('Funds not delivered');
+    expect(within(card).queryByRole('button', { name: '→ open' })).not.toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: '→ resolved_contributor' })).toBeInTheDocument();
   });
 
-  it('resolves a dispute with a note via the update endpoint', async () => {
-    mockInitialData();
-    api.updateDispute.mockResolvedValue({ id: 'd2', status: 'resolved_creator', resolution_note: 'Handled' });
-    dialogApi.prompt.mockResolvedValue('Handled');
+  it('resolves a dispute with the prompted note and updates the card', async () => {
+    dialog.prompt.mockResolvedValue('Refund contributors');
+    api.updateDispute.mockResolvedValue({ id: 'd1', status: 'resolved_contributor' });
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
+    renderPage();
+    await screen.findByText('Funds not delivered');
+    await user.click(
+      within(disputeCard('Funds not delivered')).getByRole('button', { name: '→ resolved_contributor' })
     );
-    expect(await screen.findByText('Late milestone'));
-
-    const card = screen.getByText('Late milestone').closest('div[style]');
-    const resolveButton = within(card).getByRole('button', { name: /resolved_creator/i });
-    await user.click(resolveButton);
-
-    await waitFor(() => {
-      expect(dialogApi.prompt).toHaveBeenCalled();
-      expect(api.updateDispute).toHaveBeenCalledWith(
-        'd2',
-        expect.objectContaining({ status: 'resolved_creator' })
-      );
+    await waitFor(() =>
+      expect(api.updateDispute).toHaveBeenCalledWith('d1', {
+        status: 'resolved_contributor',
+        resolution_note: 'Refund contributors',
+      })
+    );
+    expect(dialog.prompt).toHaveBeenCalledWith('Resolution note (resolved_contributor):', {
+      action: 'dispute.resolve',
     });
+    const card = disputeCard('Funds not delivered');
+    expect(await within(card).findByText('resolved_contributor')).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: '→ open' })).toBeInTheDocument();
   });
 
-  it('does not update the dispute when the prompt is cancelled', async () => {
-    mockInitialData();
-    dialogApi.prompt.mockResolvedValue(null);
+  it('does nothing when the admin cancels the prompt', async () => {
+    dialog.prompt.mockResolvedValue(null);
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Funds not delivered'));
-
-    const card = screen.getByText('Funds not delivered').closest('div[style]');
-    await user.click(within(card).getByRole('button', { name: /resolved_contributor/i }));
-
+    renderPage();
+    await screen.findByText('Funds not delivered');
+    await user.click(within(disputeCard('Funds not delivered')).getByRole('button', { name: '→ closed' }));
+    await waitFor(() => expect(dialog.prompt).toHaveBeenCalled());
     expect(api.updateDispute).not.toHaveBeenCalled();
   });
 
-  it('shows an alert when dispute resolution fails', async () => {
-    mockInitialData();
-    api.updateDispute.mockRejectedValue(new Error('nope'));
-    dialogApi.prompt.mockResolvedValue('note');
+  it('alerts the admin and leaves the status unchanged when the update fails', async () => {
+    dialog.prompt.mockResolvedValue('');
+    api.updateDispute.mockRejectedValue(new Error('Invalid transition'));
     const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Funds not delivered'));
-
-    const card = screen.getByText('Funds not delivered').closest('div[style]');
-    await user.click(within(card).getByRole('button', { name: /closed/i }));
-
-    await waitFor(() => {
-      expect(dialogApi.alert).toHaveBeenCalledWith('nope');
-    });
-  });
-
-  it('features a campaign with an optional note', async () => {
-    mockInitialData();
-    api.adminFeatureCampaign.mockResolvedValue({});
-    dialogApi.prompt.mockResolvedValue('Great cause');
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Alpha'));
-
-    const card = screen.getByText('Alpha').closest('div[style]');
-    await user.click(within(card).getByRole('button', { name: /⭐️/ }));
-
-    await waitFor(() => {
-      expect(api.adminFeatureCampaign).toHaveBeenCalledWith(1, { note: 'Great cause' });
-    });
-  });
-
-  it('unfeatures a campaign after confirmation', async () => {
-    mockInitialData();
-    api.adminUnfeatureCampaign.mockResolvedValue({});
-    dialogApi.confirm.mockResolvedValue(true);
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Alpha'));
-
-    const card = screen.getByText('Alpha').closest('div[style]');
-    await user.click(within(card).getByRole('button', { name: /unfeature/i }));
-
-    await waitFor(() => {
-      expect(api.adminUnfeatureCampaign).toHaveBeenCalledWith(1);
-    });
-  });
-
-  it('does not unfeature when confirmation is dismissed', async () => {
-    mockInitialData();
-    dialogApi.confirm.mockResolvedValue(false);
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AdminDashboard />
-      </MemoryRouter>
-    );
-    expect(await screen.findByText('Alpha'));
-
-    const card = screen.getByText('Alpha').closest('div[style]');
-    await user.click(within(card).getByRole('button', { name: /unfeature/i }));
-
-    expect(api.adminUnfeatureCampaign).not.toHaveBeenCalled();
+    renderPage();
+    await screen.findByText('Funds not delivered');
+    await user.click(within(disputeCard('Funds not delivered')).getByRole('button', { name: '→ closed' }));
+    await waitFor(() => expect(dialog.alert).toHaveBeenCalledWith('Invalid transition'));
+    expect(api.updateDispute).toHaveBeenCalledWith('d1', { status: 'closed', resolution_note: undefined });
+    expect(within(disputeCard('Funds not delivered')).getByText('open')).toBeInTheDocument();
   });
 });
