@@ -96,6 +96,36 @@ export default function Navbar() {
               >
                 {t('nav.startCampaign')}
               </Link>
+              <Link
+                to="/dashboard"
+                style={styles.link}
+                aria-current={pathname === '/dashboard' ? 'page' : undefined}
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/developer"
+                style={styles.link}
+                aria-current={pathname === '/developer' ? 'page' : undefined}
+              >
+                Developer
+              </Link>
+              <Link
+                to="/profile"
+                style={styles.link}
+                aria-current={pathname === '/profile' ? 'page' : undefined}
+              >
+                Settings
+              </Link>
+              {(user.role === 'admin' || user.is_admin) && (
+                <Link
+                  to="/admin"
+                  style={styles.link}
+                  aria-current={pathname === '/admin' ? 'page' : undefined}
+                >
+                  Admin
+                </Link>
+              )}
               <span style={styles.name} aria-hidden="true">{user.name}</span>
               <div style={styles.bellWrap} ref={bellRef}>
                 <button

@@ -45,7 +45,7 @@ function friendlyFreighterError(err, fallback) {
 }
 
 export default function ContributeModal({ campaign, onClose, onSuccess, guestFreighterMode = false }) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [amount, setAmount] = useState('');
   const [sendAsset, setSendAsset] = useState(campaign.asset_type);
   const [paymentMethod, setPaymentMethod] = useState(guestFreighterMode ? 'freighter' : 'custodial');
@@ -110,9 +110,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
           send_asset: effectiveSendAsset,
           dest_asset: campaign.asset_type,
           dest_amount: destAmount,
-        },
-        token
-      );
+        });
       setQuote(q);
     } catch (err) {
       setQuote(null);
@@ -120,7 +118,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
     } finally {
       setQuoteLoading(false);
     }
-  }, [isPathPayment, destAmount, effectiveSendAsset, campaign.asset_type, token]);
+  }, [isPathPayment, destAmount, effectiveSendAsset, campaign.asset_type]);
 
   useEffect(() => {
     if (!isPathPayment) {
@@ -201,7 +199,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
 
     const poll = async () => {
       try {
-        const next = await api.getAnchorDepositStatus(anchorSession.id, token);
+        const next = await api.getAnchorDepositStatus(anchorSession.id);
         if (stopped) return;
         setAnchorSession(next);
         if (next.contribution_tx_hash) {
@@ -234,9 +232,10 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [anchorSession?.id, onSuccess, phase, token]);
+  }, [anchorSession?.id, onSuccess, phase]);
 
   useEffect(() => {
+    const prevActive = document.activeElement;
     const modal = modalRef.current;
     if (!modal) return;
     const focusable = modal.querySelectorAll(
@@ -261,15 +260,20 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
       }
     }
     modal.addEventListener('keydown', trapTab);
-    return () => modal.removeEventListener('keydown', trapTab);
+    return () => {
+      modal.removeEventListener('keydown', trapTab);
+      prevActive?.focus?.();
+    };
   }, [phase]);
 
   async function submitWithCustodial() {
     setLoadingLabel('Submitting with CrowdPay wallet…');
-    return api.contribute(
-      { campaign_id: campaign.id, amount: destAmount, send_asset: sendAsset, display_name: displayName.trim() || undefined },
-      token
-    );
+    return api.contribute({
+      campaign_id: campaign.id,
+      amount: destAmount,
+      send_asset: sendAsset,
+      display_name: displayName.trim() || undefined,
+    });
   }
 
   async function submitWithFreighter() {
@@ -284,16 +288,13 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
     }
 
     setLoadingLabel('Preparing transaction…');
-    const prepared = await api.prepareContribution(
-      {
-        campaign_id: campaign.id,
-        amount: destAmount,
-        send_asset: sendAsset,
-        sender_public_key: signerAddress,
-        display_name: displayName.trim() || undefined,
-      },
-      token
-    );
+    const prepared = await api.prepareContribution({
+      campaign_id: campaign.id,
+      amount: destAmount,
+      send_asset: sendAsset,
+      sender_public_key: signerAddress,
+      display_name: displayName.trim() || undefined,
+    });
 
     setLoadingLabel('Checking Freighter network…');
     const network = await getNetwork();
@@ -318,13 +319,10 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
     }
 
     setLoadingLabel('Submitting signed transaction…');
-    return api.submitSignedContribution(
-      {
-        prepare_token: prepared.prepare_token,
-        signed_xdr: signed.signedTxXdr,
-      },
-      token
-    );
+    return api.submitSignedContribution({
+      prepare_token: prepared.prepare_token,
+      signed_xdr: signed.signedTxXdr,
+    });
   }
 
   async function submitWithAnchor() {
@@ -336,14 +334,11 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
     anchorPopupRef.current = popup;
 
     setLoadingLabel('Preparing deposit flow…');
-    const session = await api.startAnchorDeposit(
-      {
-        campaign_id: campaign.id,
-        amount: destAmount,
-        anchor_id: selectedAnchorId,
-      },
-      token
-    );
+    const session = await api.startAnchorDeposit({
+      campaign_id: campaign.id,
+      amount: destAmount,
+      anchor_id: selectedAnchorId,
+    });
 
     if (popup && !popup.closed) {
       popup.location.href = session.interactive_url;
@@ -353,12 +348,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
 
     setAnchorSession(session);
     setPhase('anchor');
-    return api.contribute({
-      campaign_id: campaign.id,
-      amount: destAmount,
-      send_asset: effectiveSendAsset,
-      display_name: displayName || undefined,
-    });
+    return session;
   }
 
 
@@ -411,7 +401,7 @@ export default function ContributeModal({ campaign, onClose, onSuccess, guestFre
         for (let i = 0; i < maxAttempts; i++) {
           await new Promise(r => setTimeout(r, 2000));
           try {
-            const finalizationResult = await api.getContributionFinalization(txHash, token);
+            const finalizationResult = await api.getContributionFinalization(txHash);
             if (finalizationResult.finalization_status === 'finalized') {
               setPhase('success');
               onSuccess();

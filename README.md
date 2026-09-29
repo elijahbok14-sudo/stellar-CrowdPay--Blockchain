@@ -88,7 +88,8 @@ crowdpay/
 ```bash
 git clone https://github.com/Savitura/crowdpay
 cd crowdpay
-cp backend/.env.example backend/.env
+cp .env.example .env                  # docker compose DB credentials
+cp backend/.env.example backend/.env  # backend config (single source of truth)
 docker compose up
 ```
 
@@ -118,19 +119,13 @@ cd frontend && npm run dev   # http://localhost:5173
 
 ### Environment Variables
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Random 32+ char secret |
-| `STELLAR_NETWORK` | `testnet` or `mainnet` |
-| `STELLAR_HORIZON_URL` | Horizon endpoint URL |
-| `PLATFORM_SECRET_KEY` | Stellar secret key for the platform co-signer wallet |
-| `USDC_ISSUER` | USDC issuer (`GBBD47...` on testnet) |
-| `WALLET_SECRET_LOCAL_KEK` | Base64-encoded key-encryption key for stored secrets |
-| `FRONTEND_URL` | Allowed CORS origin (dev: `http://localhost:5173`) |
-| `SMTP_HOST` / `EMAIL_SERVICE_API_KEY` | Email delivery (optional in dev) |
-| `PERSONA_API_KEY` / `PERSONA_TEMPLATE_ID` | KYC provider (optional in dev) |
-| `AWS_ACCESS_KEY_ID` + S3 vars | Image uploads (optional in dev) |
+[`backend/.env.example`](backend/.env.example) is the single source of truth. It lists every variable the
+backend reads, with comments. Its uncommented values are either hard-required (the server refuses to start without
+`DATABASE_URL`, `JWT_SECRET`, `API_KEY_PEPPER`, `PLATFORM_SECRET_KEY`, `STELLAR_NETWORK`, `STELLAR_HORIZON_URL`,
+`USDC_ISSUER`, and a valid `WALLET_SECRET_LOCAL_KEK` or AWS KMS config) or safe local-development defaults. The
+values marked DEV-ONLY are rejected when `NODE_ENV=production` or `STELLAR_NETWORK=mainnet`.
+
+The root [`.env.example`](.env.example) only holds the `POSTGRES_*` credentials used by `docker compose`.
 
 Generate a platform keypair:
 ```bash

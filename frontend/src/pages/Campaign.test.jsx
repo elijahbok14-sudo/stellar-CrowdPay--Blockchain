@@ -51,7 +51,7 @@ vi.mock('../components/CampaignQRCode', () => ({
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 42, email: 'alice@example.com', role: 'creator' },
-    token: 'mock-token',
+    ready: true,
   }),
 }));
 
@@ -64,6 +64,7 @@ vi.mock('../services/api', () => ({
     getCampaignAnalytics: vi.fn(),
     getCampaignMembers: vi.fn(),
     listWithdrawals: vi.fn(),
+    getWithdrawalCapabilities: vi.fn().mockResolvedValue({ can_approve_platform: false }),
     getCampaignBalance: vi.fn().mockResolvedValue({ USDC: '2500' }),
     getStellarTransactions: vi.fn().mockResolvedValue({ transactions: [] }),
     checkBookmark: vi.fn().mockResolvedValue({ isBookmarked: false }),

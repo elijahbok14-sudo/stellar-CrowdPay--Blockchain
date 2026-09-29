@@ -221,6 +221,7 @@ router.get('/campaign/:campaignId', publicContributionReadLimiter, optionalAuth,
 });
 
 // List contributions for the authenticated user (alias for /api/contributions/mine)
+// Deprecated alias of GET /mine (see API.md).
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const rows = await listUserContributions(req.user.userId);
   if (rows === null) return res.status(404).json({ error: 'User not found' });

@@ -11,7 +11,8 @@ CrowdPay uses [GrantFox](https://grantfox.xyz) to fund and coordinate open-sourc
 ```bash
 git clone https://github.com/Savitura/crowdpay.git
 cd crowdpay
-cp backend/.env.example backend/.env
+cp .env.example .env                  # docker compose DB credentials
+cp backend/.env.example backend/.env  # backend config (single source of truth)
 docker compose up
 ```
 

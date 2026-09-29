@@ -25,6 +25,9 @@ services:
       db:
         condition: service_healthy
     env_file: ./backend/.env
+    environment:
+      # backend/.env points at localhost for manual runs; inside compose the DB is `db`.
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     ports:
       - "3001:3001"
     volumes:
