@@ -11,7 +11,8 @@ CrowdPay uses [GrantFox](https://grantfox.xyz) to fund and coordinate open-sourc
 ```bash
 git clone https://github.com/Savitura/crowdpay.git
 cd crowdpay
-cp backend/.env.example backend/.env
+cp .env.example .env                  # docker compose DB credentials
+cp backend/.env.example backend/.env  # backend config (single source of truth)
 docker compose up
 ```
 
@@ -48,8 +49,6 @@ curl "https://friendbot.stellar.org?addr=<PLATFORM_PUBLIC_KEY>"
 4. Stay current with `git rebase origin/main`
 
 Read the full issue body before writing any code. Each issue has an acceptance criteria checklist — that's what your PR needs to satisfy.
-
-New issues are opened from the templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE) (Context → Problem → Impact → Suggested solution → Acceptance criteria), so every issue follows the same machine-readable format.
 
 ---
 
@@ -149,7 +148,7 @@ All tests must pass before submitting a PR. CI runs the same suite on every push
 
 Always include `Closes #<issue-number>` so the issue auto-closes on merge.
 
-**Checklist before submitting** (pre-filled by [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)):
+**Checklist before submitting**:
 - [ ] All acceptance criteria in the issue are satisfied
 - [ ] `npm test` passes in both `backend/` and `frontend/`
 - [ ] No files added beyond what the issue required

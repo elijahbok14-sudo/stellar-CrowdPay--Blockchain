@@ -586,7 +586,7 @@ const platformApproveHandler = async (req, res) => {
 };
 
 router.post('/:id/approve/platform', requireAuth, requirePlatformApprover, platformApproveHandler);
-// Alias for docs + issue acceptance criteria
+// Deprecated alias of POST /:id/approve/platform (see API.md).
 router.post('/:id/approve', requireAuth, requirePlatformApprover, platformApproveHandler);
 
 router.post('/:id/cancel', requireAuth, async (req, res) => {
@@ -818,7 +818,7 @@ const withdrawalAuditHandler = async (req, res) => {
 };
 
 router.get('/:id/events', requireAuth, withdrawalAuditHandler);
-// Alias for docs + issue acceptance criteria
+// Deprecated alias of GET /:id/events (see API.md).
 router.get('/:id/audit', requireAuth, withdrawalAuditHandler);
 
 module.exports = router;

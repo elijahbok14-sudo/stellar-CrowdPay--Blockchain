@@ -571,7 +571,8 @@ const approveMilestoneReleaseHandler = async (req, res) => {
   }
 };
 
-router.post('/:id/approve', requireAuth, approveMilestoneReleaseHandler);
 router.post('/:id/release', requireAuth, approveMilestoneReleaseHandler);
+// Deprecated alias of POST /:id/release (see API.md).
+router.post('/:id/approve', requireAuth, approveMilestoneReleaseHandler);
 
 module.exports = router;
